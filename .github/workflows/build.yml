@@ -1,5 +1,7 @@
 name: Build patched Sub2API image
 
+# Build-only validation; production deployment is intentionally separate.
+
 on:
   push:
     branches:
