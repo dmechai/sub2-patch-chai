@@ -1,6 +1,13 @@
 name: Build patched Sub2API image
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/build.yml"
+      - "patches/**"
+      - "scripts/**"
   workflow_dispatch:
     inputs:
       upstream_ref:
