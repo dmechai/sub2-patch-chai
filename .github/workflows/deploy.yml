@@ -4,12 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "Candidate tag, for example v0.2.4-dotfix"
-        required: true
+        description: "Candidate tag; latest means the newest candidate that passed checks"
+        required: false
+        default: latest
         type: string
       image_repository:
         description: "Candidate image repository"
-        required: true
+        required: false
         default: ghcr.io/dmechai/sub2api-custom
         type: string
 
