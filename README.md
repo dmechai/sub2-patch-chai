@@ -1,0 +1,84 @@
+# Sub2API EasyPay 点号补丁
+
+这个仓库从 Sub2API 官方正式版本构建镜像，并在需要时允许 EasyPay 的
+`upstreamType` 使用点号，例如 `usdt.trc20`。
+
+补丁只放宽 `upstreamType` 校验。Sub2API 内部使用的自定义支付方式 `type`
+仍然只能包含小写字母、数字、下划线和短横线；发给支付上游的
+`upstreamType` 不会被转换。
+
+## 当前情况
+
+- 此仓库不会管理或修改正在运行的服务。
+- 官方修复提交为 `c3b3072a6fae7ae6c686e05df78060c74f284a67`，已通过官方
+  PR `#7012` 合并。
+- 修复已经在官方 `main`，但尚未进入最新正式版本 `v0.2.4`。
+- `prepare-source.sh` 会先检测源码。旧版本才应用补丁；未来正式版本自带修复后，
+  会自动跳过补丁，避免重复修改。
+
+## 只验证，不构建、不重启
+
+```bash
+release=$(./scripts/latest-release.sh)
+./scripts/prepare-source.sh "$release" /tmp/sub2api-patch-check
+cat /tmp/sub2api-patch-check/.sub2api-patch-info
+```
+
+`v0.2.4` 应显示 `PATCH_STATUS=applied`，当前官方 `main` 应显示
+`PATCH_STATUS=already-in-upstream`。
+
+## 本机构建
+
+第一个参数留空时使用官方最新正式版本：
+
+```bash
+./scripts/build.sh "" sub2api-custom:latest
+```
+
+这只会生成本地 Docker 镜像，不会停止、重启或替换正在运行的容器。
+
+## 上传 GitHub 并跟随官方更新
+
+新建一个空的 GitHub 仓库，把本仓库推送上去并启用 GitHub Actions。工作流每天
+检查官方最新正式版本，构建后发布到 GitHub Container Registry：
+
+```text
+ghcr.io/YOUR_GITHUB_NAME/sub2api-custom:latest
+ghcr.io/YOUR_GITHUB_NAME/sub2api-custom:vX.Y.Z-dotfix
+```
+
+生产环境应使用明确的版本标签，测试通过后再主动切换。定时构建不会操作服务器，
+所以官方发布新版本不会让生产服务被静默重启。
+
+当前服务器运行官方 `v0.1.179`。首次改动要尽量小，应手动运行一次工作流，把
+`upstream_ref` 填为 `v0.1.179`，测试 `v0.1.179-dotfix` 后让生产固定使用该版本。
+定时任务可以继续构建新版本，但不会自动部署。
+
+## 以后切换生产镜像
+
+只有镜像已构建、发布并测试后才执行。保留当前 Compose 文件，可以叠加示例
+override，也可以只修改 `sub2api.image`。使用示例 override 时：
+
+```bash
+export SUB2API_IMAGE=ghcr.io/YOUR_GITHUB_NAME/sub2api-custom:vX.Y.Z-dotfix
+docker compose -f /root/sub2api-deploy/docker-compose.local.yml \
+  -f /root/sub2api-patch/compose.override.example.yml pull sub2api
+docker compose -f /root/sub2api-deploy/docker-compose.local.yml \
+  -f /root/sub2api-patch/compose.override.example.yml up -d --no-deps sub2api
+```
+
+这里只会重建应用容器；PostgreSQL、Redis 和挂载的数据不会改变。通常只有应用容器
+重启所需的短暂时间，不是整套服务长时间停机。
+
+使用自定义镜像期间，不要通过 Sub2API 页面里的在线更新按钮安装官方镜像，应通过
+Compose 提升测试过的自定义版本。等官方正式版本包含修复后，本仓库会直接构建官方
+源码，不再应用本地补丁。
+
+回滚时，把 `SUB2API_IMAGE` 改回之前记录的镜像标签，再运行同样两条 Compose 命令。
+普通的 Docker 或服务器重启只会继续使用已经选定的镜像，不会自行拉取新版本。
+
+## 迁移服务器
+
+把本 Git 仓库和镜像仓库保存在服务器之外。迁移时恢复原有 Sub2API 数据和 Compose
+部署；如果 GHCR 包是私有的，先登录 GHCR；再指定相同的版本镜像并启动。生产服务器
+不需要保留完整源码。
