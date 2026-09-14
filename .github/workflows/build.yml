@@ -61,10 +61,13 @@ jobs:
 
       - name: Read build information
         id: source
+        env:
+          UPSTREAM_TAG: ${{ steps.release.outputs.tag }}
         run: |
           source upstream-src/.sub2api-patch-info
           echo "revision=$UPSTREAM_REVISION" >> "$GITHUB_OUTPUT"
           echo "patch_status=$PATCH_STATUS" >> "$GITHUB_OUTPUT"
+          echo "version=${UPSTREAM_TAG#v}-dotfix" >> "$GITHUB_OUTPUT"
 
       - name: Read official release summary
         id: release_notes
@@ -187,11 +190,11 @@ jobs:
             ${{ steps.image.outputs.name }}:latest
             ${{ steps.image.outputs.name }}:${{ steps.release.outputs.tag }}-dotfix
           build-args: |
-            VERSION=${{ steps.release.outputs.tag }}-dotfix
+            VERSION=${{ steps.source.outputs.version }}
             COMMIT=${{ steps.source.outputs.revision }}
           labels: |
             org.opencontainers.image.revision=${{ steps.source.outputs.revision }}
-            org.opencontainers.image.version=${{ steps.release.outputs.tag }}-dotfix
+            org.opencontainers.image.version=${{ steps.source.outputs.version }}
             io.sub2api.patch.status=${{ steps.source.outputs.patch_status }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

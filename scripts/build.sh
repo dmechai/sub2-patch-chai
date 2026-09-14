@@ -16,7 +16,7 @@ source_dir="${build_root}/source"
 
 "${script_dir}/prepare-source.sh" "${upstream_ref}" "${source_dir}"
 source_revision=$(git -C "${source_dir}" rev-parse HEAD)
-version="${upstream_ref}-dotfix"
+version="${upstream_ref#v}-dotfix"
 
 docker build \
   --build-arg "VERSION=${version}" \
