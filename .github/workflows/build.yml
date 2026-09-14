@@ -167,20 +167,24 @@ jobs:
 
           if [[ "$CANDIDATE_EXISTS" == "true" ]]; then
             title="Sub2API 候选镜像已经存在"
-            detail="版本: ${RELEASE_TAG}\n镜像: ${IMAGE_NAME}:${RELEASE_TAG}-dotfix\n状态: 未重复构建，生产服务未变更"
+            printf -v detail '版本: %s\n镜像: %s:%s-dotfix\n状态: 未重复构建，生产服务未变更' \
+              "$RELEASE_TAG" "$IMAGE_NAME" "$RELEASE_TAG"
           elif [[ "$JOB_STATUS" == "success" ]]; then
             title="Sub2API 候选镜像已通过自检"
-            detail="版本: ${RELEASE_TAG}\n补丁: ${PATCH_STATUS}\n镜像: ${IMAGE_NAME}:${RELEASE_TAG}-dotfix\n状态: 已构建并推送，尚未部署"
+            printf -v detail '版本: %s\n补丁: %s\n镜像: %s:%s-dotfix\n状态: 已构建并推送，尚未部署' \
+              "$RELEASE_TAG" "$PATCH_STATUS" "$IMAGE_NAME" "$RELEASE_TAG"
           else
             title="Sub2API 候选镜像构建失败"
-            detail="版本: ${RELEASE_TAG:-未知}\n状态: ${JOB_STATUS}\n生产服务未变更"
+            printf -v detail '版本: %s\n状态: %s\n生产服务未变更' \
+              "${RELEASE_TAG:-未知}" "$JOB_STATUS"
           fi
 
           payload=$(jq -n \
             --arg chat_id "$TELEGRAM_CHAT_ID" \
-            --arg text "${title}\n\n${detail}" \
+            --arg title "$title" \
+            --arg detail "$detail" \
             --arg run_url "$RUN_URL" \
-            '{chat_id: $chat_id, text: $text, reply_markup: {inline_keyboard: [[{text: "查看构建结果", url: $run_url}]]}}')
+            '{chat_id: $chat_id, text: ($title + "\n\n" + $detail), reply_markup: {inline_keyboard: [[{text: "查看构建结果", url: $run_url}]]}}')
           curl --fail --silent --show-error \
             --request POST \
             --header "Content-Type: application/json" \
