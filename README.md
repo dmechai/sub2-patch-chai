@@ -13,8 +13,8 @@
 - 官方修复提交为 `c3b3072a6fae7ae6c686e05df78060c74f284a67`，已通过官方
   PR `#7012` 合并。
 - 修复已经在官方 `main`，但尚未进入最新正式版本 `v0.2.4`。
-- `prepare-source.sh` 会先检测源码。旧版本才应用补丁；未来正式版本自带修复后，
-  会自动跳过补丁，避免重复修改。
+- `prepare-source.sh` 会按文件名顺序处理 `patches/*.patch`。旧版本能应用时才应用；
+  官方已经包含同一补丁时会自动跳过；两种检查都不通过时停止构建，避免生成未知镜像。
 
 ## 只验证，不构建、不重启
 
@@ -24,8 +24,8 @@ release=$(./scripts/latest-release.sh)
 cat /tmp/sub2api-patch-check/.sub2api-patch-info
 ```
 
-`v0.2.4` 应显示 `PATCH_STATUS=applied`，当前官方 `main` 应显示
-`PATCH_STATUS=already-in-upstream`。
+`v0.2.4` 应显示 `easypay-upstream-type-dot.patch:applied`，当前官方 `main` 应显示
+`easypay-upstream-type-dot.patch:already-in-upstream`。
 
 ## 本机构建
 
@@ -57,6 +57,10 @@ ghcr.io/YOUR_GITHUB_NAME/sub2api-custom:vX.Y.Z-dotfix
 
 修改 `patches/`、`scripts/` 或构建工作流并推送到 `main` 时也会触发自检。仅修改
 说明文档不会重复构建镜像。
+
+以后增加补丁时，把标准 Git patch 文件放入 `patches/`，同时加入覆盖该行为的测试，
+再推送到 `main`。构建过程只修改临时下载的官方源码副本，不会覆盖 Wei-Shaw 的官方
+仓库或官方镜像；最终发布的是 `dmechai/sub2api-custom` 自有镜像。
 
 当前服务器实际运行官方 `v0.2.4`。Docker 镜像标签仍记录初始版本 `v0.1.179`，
 但页面在线更新已经把容器内程序升级到了 `v0.2.4`。首次构建应手动运行一次工作流，
