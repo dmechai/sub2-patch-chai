@@ -75,8 +75,29 @@ jobs:
             | jq -r '.body // ""' \
             | sed 's/�//g' \
             | sed -E 's/\r//g; s/[[:space:]]+$//' \
-            | awk 'NF { print; n++; if (n >= 3) exit }' \
-            | cut -c1-220 || true)
+            | awk '
+              /^##[[:space:]]+新增功能/ { in_features=1; next }
+              /^##[[:space:]]+/ { in_features=0; next }
+              {
+                line=$0
+                gsub(/^>[[:space:]]*/, "", line)
+                if (in_features && line ~ /^[-*][[:space:]]+/) {
+                  sub(/^[-*][[:space:]]+/, "", line)
+                  if (feature_count < 3 && line != "") features[++feature_count]=line
+                  next
+                }
+                if (!in_features && intro_count < 2 && line != "") intro[++intro_count]=line
+              }
+              END {
+                if (intro_count > 0) { print "概览: " intro[1] }
+                if (intro_count > 1) { print "补充: " intro[2] }
+                if (feature_count > 0) {
+                  print "重点功能:"
+                  for (i=1; i<=feature_count; i++) print "- " features[i]
+                }
+              }
+            ' \
+            || true)
           if [[ -z "$summary" ]]; then
             summary="官方 Release 详情请查看构建结果"
           fi
