@@ -63,6 +63,21 @@ jobs:
           echo "revision=$UPSTREAM_REVISION" >> "$GITHUB_OUTPUT"
           echo "patch_status=$PATCH_STATUS" >> "$GITHUB_OUTPUT"
 
+      - name: Read official release summary
+        id: release_notes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          summary=$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/Wei-Shaw/sub2api/releases/tags/${RELEASE_TAG}" \
+            | jq -r '.body // ""' \
+            | tr '\n' ' ' \
+            | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//' \
+            | cut -c1-300 || true)
+          echo "summary=${summary:-官方 Release 详情请查看构建结果}" >> "$GITHUB_OUTPUT"
+
       - name: Normalize image name
         id: image
         env:
@@ -148,7 +163,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Notify Telegram
-        if: ${{ always() && (steps.candidate.outputs.exists != 'true' || github.event_name == 'workflow_dispatch') }}
+        if: ${{ always() && (steps.candidate.outputs.exists != 'true' || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[test-telegram]')) }}
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -159,6 +174,7 @@ jobs:
           IMAGE_NAME: ${{ steps.image.outputs.name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           CANDIDATE_EXISTS: ${{ steps.candidate.outputs.exists }}
+          RELEASE_SUMMARY: ${{ steps.release_notes.outputs.summary }}
         run: |
           if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
             echo "Telegram secrets are not configured; skipping notification."
@@ -167,12 +183,12 @@ jobs:
 
           if [[ "$CANDIDATE_EXISTS" == "true" ]]; then
             title="Sub2API 候选镜像已经存在"
-            printf -v detail '版本: %s\n镜像: %s:%s-dotfix\n状态: 未重复构建，生产服务未变更' \
-              "$RELEASE_TAG" "$IMAGE_NAME" "$RELEASE_TAG"
+            printf -v detail '版本更新: 官方 %s\n官方内容: %s\n补丁内容: EasyPay upstreamType 允许使用点号（例如 usdt.trc20）\n镜像: %s:%s-dotfix\n状态: 未重复构建，生产服务未变更' \
+              "$RELEASE_TAG" "$RELEASE_SUMMARY" "$IMAGE_NAME" "$RELEASE_TAG"
           elif [[ "$JOB_STATUS" == "success" ]]; then
             title="Sub2API 候选镜像已通过自检"
-            printf -v detail '版本: %s\n补丁: %s\n镜像: %s:%s-dotfix\n状态: 已构建并推送，尚未部署' \
-              "$RELEASE_TAG" "$PATCH_STATUS" "$IMAGE_NAME" "$RELEASE_TAG"
+            printf -v detail '版本更新: 官方 %s\n官方内容: %s\n补丁内容: EasyPay upstreamType 允许使用点号（例如 usdt.trc20）\n镜像: %s:%s-dotfix\n状态: 已构建并推送，尚未部署' \
+              "$RELEASE_TAG" "$RELEASE_SUMMARY" "$IMAGE_NAME" "$RELEASE_TAG"
           else
             title="Sub2API 候选镜像构建失败"
             printf -v detail '版本: %s\n状态: %s\n生产服务未变更' \
