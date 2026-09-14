@@ -7,6 +7,11 @@ on:
         description: "Official tag or commit; leave empty for latest release"
         required: false
         type: string
+      force_rebuild:
+        description: "Rebuild even if this version already exists in GHCR"
+        required: false
+        default: false
+        type: boolean
   schedule:
     - cron: "17 3 * * *"
 
@@ -55,34 +60,6 @@ jobs:
           OWNER: ${{ github.repository_owner }}
         run: echo "name=ghcr.io/${OWNER,,}/sub2api-custom" >> "$GITHUB_OUTPUT"
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: upstream-src/backend/go.mod
-          cache-dependency-path: upstream-src/backend/go.sum
-
-      - name: Test backend validation and EasyPay forwarding
-        working-directory: upstream-src/backend
-        run: |
-          go test ./internal/service -run TestValidateEasyPayCustomMethods -count=1
-          go test ./internal/payment/provider -run TestEasyPayCustomMethodsUseConfiguredUpstreamType -count=1
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-
-      - name: Test frontend EasyPay form
-        working-directory: upstream-src/frontend
-        run: |
-          corepack enable
-          corepack prepare pnpm@9 --activate
-          pnpm install --frozen-lockfile
-          pnpm exec vitest run src/components/payment/__tests__/PaymentProviderDialog.spec.ts
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -93,7 +70,55 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check for an existing candidate image
+        id: candidate
+        env:
+          FORCE_REBUILD: ${{ inputs.force_rebuild }}
+          IMAGE_REF: ${{ steps.image.outputs.name }}:${{ steps.release.outputs.tag }}-dotfix
+        run: |
+          if [[ "$FORCE_REBUILD" == "true" ]]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          elif docker buildx imagetools inspect "$IMAGE_REF" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Go
+        if: ${{ steps.candidate.outputs.exists != 'true' }}
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: upstream-src/backend/go.mod
+          cache-dependency-path: upstream-src/backend/go.sum
+
+      - name: Test backend validation and EasyPay forwarding
+        if: ${{ steps.candidate.outputs.exists != 'true' }}
+        working-directory: upstream-src/backend
+        run: |
+          go test ./internal/service -run TestValidateEasyPayCustomMethods -count=1
+          go test ./internal/payment/provider -run TestEasyPayCustomMethodsUseConfiguredUpstreamType -count=1
+
+      - name: Set up Node.js
+        if: ${{ steps.candidate.outputs.exists != 'true' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Test frontend EasyPay form
+        if: ${{ steps.candidate.outputs.exists != 'true' }}
+        working-directory: upstream-src/frontend
+        run: |
+          corepack enable
+          corepack prepare pnpm@9 --activate
+          pnpm install --frozen-lockfile
+          pnpm exec vitest run src/components/payment/__tests__/PaymentProviderDialog.spec.ts
+
+      - name: Set up QEMU
+        if: ${{ steps.candidate.outputs.exists != 'true' }}
+        uses: docker/setup-qemu-action@v3
+
       - name: Build and publish
+        if: ${{ steps.candidate.outputs.exists != 'true' }}
         id: publish
         uses: docker/build-push-action@v6
         with:
@@ -114,7 +139,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Notify Telegram
-        if: ${{ always() }}
+        if: ${{ always() && (steps.candidate.outputs.exists != 'true' || github.event_name == 'workflow_dispatch') }}
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -124,13 +149,17 @@ jobs:
           PATCH_STATUS: ${{ steps.source.outputs.patch_status }}
           IMAGE_NAME: ${{ steps.image.outputs.name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CANDIDATE_EXISTS: ${{ steps.candidate.outputs.exists }}
         run: |
           if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
             echo "Telegram secrets are not configured; skipping notification."
             exit 0
           fi
 
-          if [[ "$JOB_STATUS" == "success" ]]; then
+          if [[ "$CANDIDATE_EXISTS" == "true" ]]; then
+            title="Sub2API 候选镜像已经存在"
+            detail="版本: ${RELEASE_TAG}\n镜像: ${IMAGE_NAME}:${RELEASE_TAG}-dotfix\n状态: 未重复构建，生产服务未变更"
+          elif [[ "$JOB_STATUS" == "success" ]]; then
             title="Sub2API 候选镜像已通过自检"
             detail="版本: ${RELEASE_TAG}\n补丁: ${PATCH_STATUS}\n镜像: ${IMAGE_NAME}:${RELEASE_TAG}-dotfix\n状态: 已构建并推送，尚未部署"
           else
