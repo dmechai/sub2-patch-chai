@@ -83,7 +83,27 @@ jobs:
           override=$(mktemp /tmp/sub2api-deploy.XXXXXX.yml)
           rollback_override=$(mktemp /tmp/sub2api-rollback.XXXXXX.yml)
           cleanup() { rm -f "$override" "$rollback_override"; }
-          trap cleanup EXIT
+          deployment_started=false
+
+          rollback() {
+            echo "Restoring previous container image." >&2
+            cat > "$rollback_override" <<EOF
+          services:
+            sub2api:
+              image: ${ROLLBACK_REF}
+          EOF
+            "${compose[@]}" -f "$rollback_override" up -d --no-deps sub2api || true
+          }
+
+          on_exit() {
+            exit_code=$?
+            if [[ "$exit_code" != 0 && "$deployment_started" == true ]]; then
+              rollback
+            fi
+            cleanup
+            exit "$exit_code"
+          }
+          trap on_exit EXIT
 
           cat > "$override" <<EOF
           services:
@@ -97,6 +117,7 @@ jobs:
 
           docker commit sub2api "$ROLLBACK_REF" >/dev/null
           "${compose[@]}" -f "$override" pull sub2api
+          deployment_started=true
           "${compose[@]}" -f "$override" up -d --no-deps sub2api
 
           healthy=false
@@ -110,13 +131,6 @@ jobs:
           done
 
           if [[ "$healthy" != true ]]; then
-            echo "Candidate failed health check; restoring previous container image." >&2
-            cat > "$rollback_override" <<EOF
-          services:
-            sub2api:
-              image: ${ROLLBACK_REF}
-          EOF
-            "${compose[@]}" -f "$rollback_override" up -d --no-deps sub2api
             exit 1
           fi
 
