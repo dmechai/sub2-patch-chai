@@ -229,11 +229,11 @@ jobs:
 
           if [[ "$CANDIDATE_EXISTS" == "true" ]]; then
             title="Sub2API 候选镜像已经存在"
-            printf -v detail '1. 官方版本更新\n   版本: %s\n   内容:\n%s\n\n2. 本次补丁\n   - EasyPay upstreamType 允许使用点号\n     示例: usdt.trc20\n   - type=crypto 使用专属支付图标\n\n3. 候选镜像\n   %s:%s-dotfix\n   状态: 已存在，未重复构建，生产服务未变更' \
+            printf -v detail '1. 官方版本更新\n   版本: %s\n   内容:\n%s\n\n2. 本次补丁\n   - EasyPay upstreamType 允许使用点号\n     示例: usdt.trc20\n   - type=u (USDC / USDT) 使用专属支付图标\n\n3. 候选镜像\n   %s:%s-dotfix\n   状态: 已存在，未重复构建，生产服务未变更' \
               "$RELEASE_TAG" "$RELEASE_SUMMARY" "$IMAGE_NAME" "$RELEASE_TAG"
           elif [[ "$JOB_STATUS" == "success" ]]; then
             title="Sub2API 候选镜像已通过自检"
-            printf -v detail '1. 官方版本更新\n   版本: %s\n   内容:\n%s\n\n2. 本次补丁\n   - EasyPay upstreamType 允许使用点号\n     示例: usdt.trc20\n   - type=crypto 使用专属支付图标\n\n3. 候选镜像\n   %s:%s-dotfix\n   状态: 已通过自检并推送，尚未部署' \
+            printf -v detail '1. 官方版本更新\n   版本: %s\n   内容:\n%s\n\n2. 本次补丁\n   - EasyPay upstreamType 允许使用点号\n     示例: usdt.trc20\n   - type=u (USDC / USDT) 使用专属支付图标\n\n3. 候选镜像\n   %s:%s-dotfix\n   状态: 已通过自检并推送，尚未部署' \
               "$RELEASE_TAG" "$RELEASE_SUMMARY" "$IMAGE_NAME" "$RELEASE_TAG"
           else
             failure_reason="其他构建错误，请打开构建结果查看失败步骤"

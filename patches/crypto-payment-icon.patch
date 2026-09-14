@@ -22,7 +22,7 @@ index 25e99f0..e4895bb 100644
    stripe: stripeIcon,
    airwallex: airwallexIcon,
    credit_card: paymentIcon,
-+  crypto: cryptoIcon,
++  u: cryptoIcon,
  }
  
  const sortedMethods = computed(() => {
@@ -34,12 +34,12 @@ index 5543ee8..d7739ba 100644
      expect(wrapper.text()).not.toContain('payment.methods.ldc')
    })
  
-+  it('uses the crypto icon only for the crypto payment method', () => {
++  it('uses the crypto icon only for the configured u payment method', () => {
 +    const wrapper = mount(PaymentMethodSelector, {
 +      props: {
-+        selected: 'crypto',
++        selected: 'u',
 +        methods: [
-+          { type: 'crypto', display_name: 'Crypto', fee_rate: 0, available: true },
++          { type: 'u', display_name: 'USDC / USDT', fee_rate: 0, available: true },
 +          { type: 'ldc', display_name: 'LDC Pay', fee_rate: 0, available: true },
 +        ],
 +      },
