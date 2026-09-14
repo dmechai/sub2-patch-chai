@@ -184,7 +184,8 @@ jobs:
             --arg title "$title" \
             --arg detail "$detail" \
             --arg run_url "$RUN_URL" \
-            '{chat_id: $chat_id, text: ($title + "\n\n" + $detail), reply_markup: {inline_keyboard: [[{text: "查看构建结果", url: $run_url}]]}}')
+            --arg deploy_url "${{ github.server_url }}/${{ github.repository }}/actions/workflows/deploy.yml" \
+            '{chat_id: $chat_id, text: ($title + "\n\n" + $detail), reply_markup: {inline_keyboard: [[{text: "查看构建结果", url: $run_url}, {text: "打开部署页面", url: $deploy_url}]]}}')
           curl --fail --silent --show-error \
             --request POST \
             --header "Content-Type: application/json" \

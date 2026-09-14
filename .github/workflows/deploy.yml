@@ -1,0 +1,123 @@
+name: Deploy Sub2API candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Candidate tag, for example v0.2.4-dotfix"
+        required: true
+        type: string
+      image_repository:
+        description: "Candidate image repository"
+        required: true
+        default: ghcr.io/dmechai/sub2api-custom
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sub2api-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - name: Validate image reference
+        env:
+          IMAGE_REPOSITORY: ${{ inputs.image_repository }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          [[ "$IMAGE_REPOSITORY" =~ ^[a-zA-Z0-9./_-]+$ ]]
+          [[ "$IMAGE_TAG" =~ ^[a-zA-Z0-9._/-]+$ ]]
+
+      - name: Install deployment SSH key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Install pinned server host key
+        env:
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          test -n "$DEPLOY_KNOWN_HOSTS"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy and verify with rollback
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          IMAGE_REPOSITORY: ${{ inputs.image_repository }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          ROLLBACK_REF: sub2api-rollback:${{ github.run_id }}
+        run: |
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_USER"
+          test -n "$DEPLOY_PATH"
+          test -n "$DEPLOY_PORT"
+          image_ref="${IMAGE_REPOSITORY}:${IMAGE_TAG}"
+          ssh_args=(-i ~/.ssh/deploy_key -p "$DEPLOY_PORT" -o IdentitiesOnly=yes)
+          remote_env=(
+            "DEPLOY_PATH=$(printf '%q' "$DEPLOY_PATH")"
+            "IMAGE_REF=$(printf '%q' "$image_ref")"
+            "GHCR_USERNAME=$(printf '%q' "$GHCR_USERNAME")"
+            "GHCR_TOKEN=$(printf '%q' "$GHCR_TOKEN")"
+            "ROLLBACK_REF=$(printf '%q' "$ROLLBACK_REF")"
+          )
+          ssh "${ssh_args[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" "${remote_env[*]} bash -s" <<'REMOTE'
+          set -Eeuo pipefail
+          cd "$DEPLOY_PATH"
+          compose=(docker compose -f docker-compose.local.yml)
+          override=$(mktemp /tmp/sub2api-deploy.XXXXXX.yml)
+          rollback_override=$(mktemp /tmp/sub2api-rollback.XXXXXX.yml)
+          cleanup() { rm -f "$override" "$rollback_override"; }
+          trap cleanup EXIT
+
+          cat > "$override" <<EOF
+          services:
+            sub2api:
+              image: ${IMAGE_REF}
+          EOF
+
+          if [[ -n "$GHCR_USERNAME" && -n "$GHCR_TOKEN" ]]; then
+            printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+          fi
+
+          docker commit sub2api "$ROLLBACK_REF" >/dev/null
+          "${compose[@]}" -f "$override" pull sub2api
+          "${compose[@]}" -f "$override" up -d --no-deps sub2api
+
+          healthy=false
+          for _ in $(seq 1 36); do
+            status=$(docker inspect --format '{{.State.Health.Status}}' sub2api 2>/dev/null || true)
+            if [[ "$status" == healthy ]]; then
+              healthy=true
+              break
+            fi
+            sleep 5
+          done
+
+          if [[ "$healthy" != true ]]; then
+            echo "Candidate failed health check; restoring previous container image." >&2
+            cat > "$rollback_override" <<EOF
+          services:
+            sub2api:
+              image: ${ROLLBACK_REF}
+          EOF
+            "${compose[@]}" -f "$rollback_override" up -d --no-deps sub2api
+            exit 1
+          fi
+
+          docker exec sub2api /app/sub2api --version 2>&1 | head -n 1
+          REMOTE

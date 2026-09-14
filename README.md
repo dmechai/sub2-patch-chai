@@ -53,7 +53,8 @@ ghcr.io/YOUR_GITHUB_NAME/sub2api-custom:vX.Y.Z-dotfix
 在仓库的 Actions secrets 中配置 `TELEGRAM_BOT_TOKEN` 和
 `TELEGRAM_CHAT_ID` 后，每次构建都会通知成功或失败。成功通知仅表示候选镜像已经
 通过后端校验、支付参数透传和前端表单测试，并已推送到 GHCR；通知本身不会部署。
-部署入口在单独的手动工作流中配置，任何定时任务都不能调用它。
+成功通知还会提供一个“打开部署页面”按钮。部署入口是单独的手动工作流，任何定时
+任务都不能调用它；页面还会要求 `production` 环境审批。
 
 修改 `patches/`、`scripts/` 或构建工作流并推送到 `main` 时也会触发自检。仅修改
 说明文档不会重复构建镜像。
@@ -61,6 +62,27 @@ ghcr.io/YOUR_GITHUB_NAME/sub2api-custom:vX.Y.Z-dotfix
 以后增加补丁时，把标准 Git patch 文件放入 `patches/`，同时加入覆盖该行为的测试，
 再推送到 `main`。构建过程只修改临时下载的官方源码副本，不会覆盖 Wei-Shaw 的官方
 仓库或官方镜像；最终发布的是 `dmechai/sub2api-custom` 自有镜像。
+
+## 部署工作流所需配置
+
+在仓库 `Settings -> Environments` 新建 `production` 环境，添加你自己的审批人，
+并在该环境的 **Environment secrets** 中配置：
+
+```text
+DEPLOY_HOST       服务器 IP 或域名
+DEPLOY_PORT       SSH 端口，通常是 22
+DEPLOY_USER       SSH 用户，需能执行 Docker
+DEPLOY_PATH       /root/sub2api-deploy
+DEPLOY_SSH_KEY    GitHub Actions 使用的私钥
+DEPLOY_KNOWN_HOSTS 服务器固定的 known_hosts 行
+GHCR_USERNAME     能拉取 GHCR 镜像的 GitHub 用户名
+GHCR_TOKEN        只读 GHCR Token；公开镜像可留空
+```
+
+部署工作流会先等待 `production` 审批，随后通过 SSH 在服务器上临时生成 Compose
+override，创建当前容器的回滚镜像，拉取候选镜像并重建 **仅 Sub2API 容器**。健康检查
+失败会恢复刚才保存的容器镜像并使工作流失败。PostgreSQL、Redis 和数据目录不会被
+重建或删除。
 
 当前服务器实际运行官方 `v0.2.4`。Docker 镜像标签仍记录初始版本 `v0.1.179`，
 但页面在线更新已经把容器内程序升级到了 `v0.2.4`。首次构建应手动运行一次工作流，
