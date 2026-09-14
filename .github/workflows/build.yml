@@ -133,9 +133,10 @@ jobs:
         id: candidate
         env:
           FORCE_REBUILD: ${{ inputs.force_rebuild }}
+          EVENT_NAME: ${{ github.event_name }}
           IMAGE_REF: ${{ steps.image.outputs.name }}:${{ steps.release.outputs.tag }}-dotfix
         run: |
-          if [[ "$FORCE_REBUILD" == "true" ]]; then
+          if [[ "$FORCE_REBUILD" == "true" || "$EVENT_NAME" == "push" ]]; then
             echo "exists=false" >> "$GITHUB_OUTPUT"
           elif docker buildx imagetools inspect "$IMAGE_REF" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
@@ -172,7 +173,9 @@ jobs:
           corepack enable
           corepack prepare pnpm@9 --activate
           pnpm install --frozen-lockfile
-          pnpm exec vitest run src/components/payment/__tests__/PaymentProviderDialog.spec.ts
+          pnpm exec vitest run \
+            src/components/payment/__tests__/PaymentProviderDialog.spec.ts \
+            src/components/payment/__tests__/PaymentMethodSelector.spec.ts
 
       - name: Set up QEMU
         if: ${{ steps.candidate.outputs.exists != 'true' }}
@@ -226,11 +229,11 @@ jobs:
 
           if [[ "$CANDIDATE_EXISTS" == "true" ]]; then
             title="Sub2API 候选镜像已经存在"
-            printf -v detail '1. 官方版本更新\n   版本: %s\n   内容:\n%s\n\n2. 本次补丁\n   EasyPay upstreamType 允许使用点号\n   示例: usdt.trc20\n\n3. 候选镜像\n   %s:%s-dotfix\n   状态: 已存在，未重复构建，生产服务未变更' \
+            printf -v detail '1. 官方版本更新\n   版本: %s\n   内容:\n%s\n\n2. 本次补丁\n   - EasyPay upstreamType 允许使用点号\n     示例: usdt.trc20\n   - type=crypto 使用专属支付图标\n\n3. 候选镜像\n   %s:%s-dotfix\n   状态: 已存在，未重复构建，生产服务未变更' \
               "$RELEASE_TAG" "$RELEASE_SUMMARY" "$IMAGE_NAME" "$RELEASE_TAG"
           elif [[ "$JOB_STATUS" == "success" ]]; then
             title="Sub2API 候选镜像已通过自检"
-            printf -v detail '1. 官方版本更新\n   版本: %s\n   内容:\n%s\n\n2. 本次补丁\n   EasyPay upstreamType 允许使用点号\n   示例: usdt.trc20\n\n3. 候选镜像\n   %s:%s-dotfix\n   状态: 已通过自检并推送，尚未部署' \
+            printf -v detail '1. 官方版本更新\n   版本: %s\n   内容:\n%s\n\n2. 本次补丁\n   - EasyPay upstreamType 允许使用点号\n     示例: usdt.trc20\n   - type=crypto 使用专属支付图标\n\n3. 候选镜像\n   %s:%s-dotfix\n   状态: 已通过自检并推送，尚未部署' \
               "$RELEASE_TAG" "$RELEASE_SUMMARY" "$IMAGE_NAME" "$RELEASE_TAG"
           else
             failure_reason="其他构建错误，请打开构建结果查看失败步骤"

@@ -1,0 +1,55 @@
+diff --git a/frontend/src/assets/icons/pay-crypto.svg b/frontend/src/assets/icons/pay-crypto.svg
+new file mode 100644
+index 0000000..966e5af
+--- /dev/null
++++ b/frontend/src/assets/icons/pay-crypto.svg
+@@ -0,0 +1 @@
++<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" class="icon" viewBox="0 0 1024 1024"><path fill="#ffd552" d="M182.8 713.2c10 16.4 21.2 32 34 47.2l47.2-47.2zm262.8-266.4c29.6-29.6 74.8-35.2 110-16.4l28-28v-254l11.6-11.6c-124.4-27.6-259.6 6.8-356 103.6-111.6 111.6-140 274.8-86 412.8H324l7.6-7.6 48.8-48.8 10.8-10.8 35.6-35.6c-15.6-34-9.2-75.6 18.8-103.6M363.2 868l17.2-17.2V682L258.8 803.6c32 27.2 67.2 48.8 104.4 64.4m506.4-497.2H700l-56.4 56.4-47.2 47.2c15.6 34.4 9.2 76-19.2 104.4-29.6 29.6-74.8 35.2-110 16.4L440 622.4V876l-12.8 12.8c124.4 27.6 259.6-6.8 356-103.6 112.4-112 140.8-276 86.4-414.4"/><path fill="#4a555f" d="m307.6 975.6-9.6-10L403.6 860V609.6h13.6V866z"/><path fill="#ffd552" d="M764 222c-31.6-27.6-66.8-49.2-104-64.4L643.6 174v168.8zm42 42.4-46 46.4h79.6c-10-16-21.2-31.6-33.6-46.4M488 536c12.8 12.8 34 12.8 46.8 0s12.8-34 0-47.2c-12.8-12.8-34-12.8-46.8 0-12.8 13.2-12.8 34.4 0 47.2"/><path fill="#4a555f" d="M511.6 927.6c-110.8 0-215.2-43.2-293.6-121.6-162-161.6-162-425.2 0-586.8 78.4-78.4 182.8-121.6 293.6-121.6s215.2 43.2 293.6 121.6S926.8 402 926.8 512.8 883.6 728 805.2 806.4c-78.8 78-182.8 121.2-293.6 121.2m0-816.4c-107.2 0-208 41.6-283.6 117.6-156.4 156.4-156.4 410.8 0 567.6C303.6 872 404.4 914 511.6 914s208-41.6 283.6-117.6c75.6-75.6 117.6-176.4 117.6-283.6s-41.6-208-117.6-283.6c-76-76-176.4-118-283.6-118"/><path fill="#4a555f" d="M511.6 842.8c-88.4 0-171.2-34.4-233.6-96.8s-96.8-145.2-96.8-233.6 34.4-171.2 96.8-233.6S423.2 182 511.6 182s171.2 34.4 233.6 96.8C874 407.6 874 617.2 745.2 746c-62.4 62.8-145.6 96.8-233.6 96.8m0-646.8c-84.4 0-164 32.8-224 92.8-59.6 59.6-92.8 139.2-92.8 223.6s32.8 164 92.8 224c59.6 59.6 139.2 92.8 224 92.8s164-32.8 224-92.8c123.6-123.6 123.6-324.4 0-447.6-60-60-139.6-92.8-224-92.8"/><path fill="#4a555f" d="m563.2 474.8-10-9.6L684.4 334h245.2l37.2-37.2 9.6 10-40.8 40.8H690.4z"/><path fill="#4a555f" d="M620.4 414.4h-13.6V158L716.4 48.4l9.6 10L620.4 164zm289.8-306.108 9.9 9.9-227.684 227.684-9.9-9.9z"/><path fill="#4a555f" d="M934 128c-8.8 0-17.2-3.6-23.6-10a33.56 33.56 0 0 1 0-47.6c6.4-6.4 14.8-10 23.6-10s17.2 3.6 23.6 10c13.2 13.2 13.2 34.4 0 47.6-6.4 6.4-14.8 10-23.6 10m0-53.2c-5.2 0-10.4 2-14 5.6-7.6 7.6-7.6 20 0 28 3.6 3.6 8.8 5.6 14 5.6s10.4-2 14-5.6c7.6-7.6 7.6-20 0-28-4-3.6-8.8-5.6-14-5.6m56.4 241.6c-8.8 0-17.2-3.6-23.6-10a33.56 33.56 0 0 1 0-47.6c6.4-6.4 14.8-10 23.6-10s17.2 3.6 23.6 10c13.2 13.2 13.2 34.4 0 47.6-6 6.4-14.4 10-23.6 10m0-53.2c-5.2 0-10.4 2-14 5.6-7.6 7.6-7.6 20 0 28 3.6 3.6 8.8 5.6 14 5.6s10.4-2 14-5.6c7.6-7.6 7.6-20 0-28-3.6-3.6-8.8-5.6-14-5.6M740 68c-8.8 0-17.2-3.6-23.6-10a33.56 33.56 0 0 1 0-47.6C722.8 4 731.2.4 740 .4s17.2 3.6 23.6 10c13.2 13.2 13.2 34.4 0 47.6-6.4 6.8-14.8 10-23.6 10m0-53.2c-5.2 0-10.4 2-14 5.6-7.6 7.6-7.6 20 0 28 3.6 3.6 8.8 5.6 14 5.6s10.4-2 14-5.6c7.6-7.6 7.6-20 0-28-3.6-3.6-8.8-5.6-14-5.6m-228.4 568c-18.8 0-36.4-7.2-49.6-20.4-27.2-27.2-27.2-72 0-99.2 13.2-13.2 30.8-20.4 49.6-20.4s36.4 7.2 49.6 20.4c27.2 27.2 27.2 72 0 99.2-13.2 13.2-30.8 20.4-49.6 20.4m0-126.4c-15.2 0-29.2 6-40 16.4-22 22-22 57.6 0 79.6 10.8 10.8 24.8 16.4 40 16.4s29.2-6 40-16.4c22-22 22-57.6 0-79.6-10.8-10.8-25.2-16.4-40-16.4"/><path fill="#4a555f" d="m910.2 108.292 9.9 9.896-227.688 227.688-9.9-9.9zM57.2 727.2l-9.6-10 40.8-40.8h245.2l127.2-127.2 10 9.6L339.6 690H94.4z"/><path fill="#4a555f" d="m307.6 975.6-9.6-10L403.6 860V609.6h13.6V866zm24.276-297.22 9.9 9.9-227.688 227.688-9.9-9.9z"/><path fill="#4a555f" d="M90 963.2c-8.8 0-17.2-3.6-23.6-10a33.56 33.56 0 0 1 0-47.6c6.4-6.4 14.8-10 23.6-10s17.2 3.6 23.6 10c13.2 13.2 13.2 34.4 0 47.6-6 6.4-14.4 10-23.6 10m0-53.2c-5.2 0-10.4 2-14 5.6-7.6 7.6-7.6 20 0 28 3.6 3.6 8.8 5.6 14 5.6s10.4-2 14-5.6c7.6-7.6 7.6-20 0-28-3.6-3.6-8.4-5.6-14-5.6M33.6 774.8c-8.8 0-17.2-3.6-23.6-10S0 750 0 741.2s3.6-17.2 10-23.6 14.8-10 23.6-10 17.2 3.6 23.6 10 10 14.8 10 23.6-3.6 17.2-10 23.6-14.8 10-23.6 10m0-53.6c-5.2 0-10.4 2-14 5.6s-5.6 8.8-5.6 14 2 10.4 5.6 14 8.8 5.6 14 5.6 10.4-2 14-5.6 5.6-8.8 5.6-14-2-10.4-5.6-14c-4-3.2-8.8-5.6-14-5.6M284 1022.8c-8.8 0-17.2-3.6-23.6-10s-10-14.8-10-23.6 3.6-17.2 10-23.6 14.8-10 23.6-10 17.2 3.6 23.6 10 10 14.8 10 23.6-3.6 17.2-10 23.6c-6.4 6.8-14.8 10-23.6 10m0-53.2c-5.2 0-10.4 2-14 5.6s-5.6 8.8-5.6 14 2 10.4 5.6 14 8.8 5.6 14 5.6 10.4-2 14-5.6 5.6-8.8 5.6-14-2-10.4-5.6-14-8.8-5.6-14-5.6"/><path fill="#4a555f" d="m113.668 915.748-9.9-9.9 227.684-227.684 9.9 9.896z"/><path fill="#4a555f" d="m57.2 727.2-9.6-10 40.8-40.8h245.2l127.2-127.2 10 9.6L339.6 690H94.4z"/><path fill="#4a555f" d="m113.668 915.748-9.9-9.9 227.684-227.684 9.9 9.896z"/></svg>
+\ No newline at end of file
+diff --git a/frontend/src/components/payment/PaymentMethodSelector.vue b/frontend/src/components/payment/PaymentMethodSelector.vue
+index 25e99f0..e4895bb 100644
+--- a/frontend/src/components/payment/PaymentMethodSelector.vue
++++ b/frontend/src/components/payment/PaymentMethodSelector.vue
+@@ -51,6 +51,7 @@ import wxpayIcon from '@/assets/icons/wxpay.svg'
+ import stripeIcon from '@/assets/icons/stripe.svg'
+ import airwallexIcon from '@/assets/icons/airwallex.svg'
+ import paymentIcon from '@/assets/icons/payment.svg'
++import cryptoIcon from '@/assets/icons/pay-crypto.svg'
+ 
+ export interface PaymentMethodOption {
+   type: string
+@@ -76,6 +77,7 @@ const METHOD_ICONS: Record<string, string> = {
+   stripe: stripeIcon,
+   airwallex: airwallexIcon,
+   credit_card: paymentIcon,
++  crypto: cryptoIcon,
+ }
+ 
+ const sortedMethods = computed(() => {
+diff --git a/frontend/src/components/payment/__tests__/PaymentMethodSelector.spec.ts b/frontend/src/components/payment/__tests__/PaymentMethodSelector.spec.ts
+index 5543ee8..d7739ba 100644
+--- a/frontend/src/components/payment/__tests__/PaymentMethodSelector.spec.ts
++++ b/frontend/src/components/payment/__tests__/PaymentMethodSelector.spec.ts
+@@ -48,6 +48,22 @@ describe('PaymentMethodSelector', () => {
+     expect(wrapper.text()).not.toContain('payment.methods.ldc')
+   })
+ 
++  it('uses the crypto icon only for the crypto payment method', () => {
++    const wrapper = mount(PaymentMethodSelector, {
++      props: {
++        selected: 'crypto',
++        methods: [
++          { type: 'crypto', display_name: 'Crypto', fee_rate: 0, available: true },
++          { type: 'ldc', display_name: 'LDC Pay', fee_rate: 0, available: true },
++        ],
++      },
++    })
++
++    const icons = wrapper.findAll('img')
++    expect(icons[0].attributes('src')).toContain('pay-crypto.svg')
++    expect(icons[1].attributes('src')).toContain('payment.svg')
++  })
++
+   it('uses the generic selected style for custom methods that contain built-in names', () => {
+     const wrapper = mount(PaymentMethodSelector, {
+       props: {
