@@ -185,7 +185,8 @@ jobs:
             --arg detail "$detail" \
             --arg run_url "$RUN_URL" \
             --arg deploy_url "${{ github.server_url }}/${{ github.repository }}/actions/workflows/deploy.yml" \
-            '{chat_id: $chat_id, text: ($title + "\n\n" + $detail), reply_markup: {inline_keyboard: [[{text: "查看构建结果", url: $run_url}, {text: "打开部署页面", url: $deploy_url}]]}}')
+            --arg rollback_url "${{ github.server_url }}/${{ github.repository }}/actions/workflows/rollback.yml" \
+            '{chat_id: $chat_id, text: ($title + "\n\n" + $detail), reply_markup: {inline_keyboard: [[{text: "查看构建结果", url: $run_url}, {text: "准备部署", url: $deploy_url}], [{text: "打开回退页面", url: $rollback_url}]]}}')
           curl --fail --silent --show-error \
             --request POST \
             --header "Content-Type: application/json" \

@@ -65,27 +65,28 @@ ghcr.io/YOUR_GITHUB_NAME/sub2api-custom:vX.Y.Z-dotfix
 
 ## 部署工作流所需配置
 
-在仓库 `Settings -> Environments` 新建 `production` 环境，添加你自己的审批人，
-并在该环境的 **Environment secrets** 中配置：
+在仓库 `Settings -> Environments` 新建 `production` 环境，添加你自己的审批人。
+部署相关的连接值放在仓库 `Settings -> Secrets and variables -> Actions` 的
+**Repository secrets** 中（这样审批前的服务器预检也能执行）：
 
 ```text
 DEPLOY_HOST       服务器 IP 或域名
 DEPLOY_PORT       SSH 端口，通常是 22
-DEPLOY_USER       SSH 用户，需能执行 Docker
-DEPLOY_PATH       /root/sub2api-deploy
+DEPLOY_USER       固定填 sub2api-deployer
+DEPLOY_PATH       不再需要；服务器脚本固定使用 /root/sub2api-deploy
 DEPLOY_SSH_KEY    GitHub Actions 使用的私钥
 DEPLOY_KNOWN_HOSTS 服务器固定的 known_hosts 行
-GHCR_USERNAME     能拉取 GHCR 镜像的 GitHub 用户名
-GHCR_TOKEN        只读 GHCR Token；公开镜像可留空
 ```
 
-部署工作流会先等待 `production` 审批，随后通过 SSH 在服务器上临时生成 Compose
-override，创建当前容器的回滚镜像，拉取候选镜像并重建 **仅 Sub2API 容器**。健康检查
-失败会恢复刚才保存的容器镜像并使工作流失败。PostgreSQL、Redis 和数据目录不会被
-重建或删除。
+部署工作流先在 `production` 审批前通过 SSH 做预检：验证当前服务健康、拉取候选镜像、
+检查版本和官方来源标签、运行二进制 `--version`，并用不暂停容器的方式保存回滚快照。
+预检不会重启服务。你批准后，工作流只使用已缓存的镜像切换 **Sub2API 容器**，再做
+健康检查；失败会自动恢复快照。PostgreSQL、Redis 和数据目录不会被重建或删除。
 
 部署页面默认使用 `ghcr.io/dmechai/sub2api-custom:latest`，它指向最近一次通过自检并
 成功上传的候选镜像；也可以手动填写固定标签（例如 `v0.2.4-dotfix`）以便审计和回滚。
+回退工作流从服务器保存的最近一次部署快照恢复，Telegram 的“打开回退页面”按钮会
+直接进入该工作流。
 
 当前服务器实际运行官方 `v0.2.4`。Docker 镜像标签仍记录初始版本 `v0.1.179`，
 但页面在线更新已经把容器内程序升级到了 `v0.2.4`。首次构建应手动运行一次工作流，
