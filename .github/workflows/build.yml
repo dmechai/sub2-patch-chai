@@ -74,10 +74,17 @@ jobs:
             "https://api.github.com/repos/Wei-Shaw/sub2api/releases/tags/${RELEASE_TAG}" \
             | jq -r '.body // ""' \
             | sed 's/�//g' \
-            | tr '\n' ' ' \
-            | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//' \
-            | cut -c1-300 || true)
-          echo "summary=${summary:-官方 Release 详情请查看构建结果}" >> "$GITHUB_OUTPUT"
+            | sed -E 's/\r//g; s/[[:space:]]+$//' \
+            | awk 'NF { print; n++; if (n >= 3) exit }' \
+            | cut -c1-220 || true)
+          if [[ -z "$summary" ]]; then
+            summary="官方 Release 详情请查看构建结果"
+          fi
+          {
+            echo 'summary<<RELEASE_SUMMARY_EOF'
+            echo "$summary"
+            echo 'RELEASE_SUMMARY_EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Normalize image name
         id: image
@@ -184,11 +191,11 @@ jobs:
 
           if [[ "$CANDIDATE_EXISTS" == "true" ]]; then
             title="Sub2API 候选镜像已经存在"
-            printf -v detail '1. 官方版本: %s\n   官方内容: %s\n2. 补丁内容: EasyPay upstreamType 允许使用点号（例如 usdt.trc20）\n3. 镜像: %s:%s-dotfix\n   状态: 已存在，未重复构建，生产服务未变更' \
+            printf -v detail '1. 官方版本更新\n   版本: %s\n   内容:\n%s\n\n2. 本次补丁\n   EasyPay upstreamType 允许使用点号\n   示例: usdt.trc20\n\n3. 候选镜像\n   %s:%s-dotfix\n   状态: 已存在，未重复构建，生产服务未变更' \
               "$RELEASE_TAG" "$RELEASE_SUMMARY" "$IMAGE_NAME" "$RELEASE_TAG"
           elif [[ "$JOB_STATUS" == "success" ]]; then
             title="Sub2API 候选镜像已通过自检"
-            printf -v detail '1. 官方版本: %s\n   官方内容: %s\n2. 补丁内容: EasyPay upstreamType 允许使用点号（例如 usdt.trc20）\n3. 镜像: %s:%s-dotfix\n   状态: 已通过自检并推送，尚未部署' \
+            printf -v detail '1. 官方版本更新\n   版本: %s\n   内容:\n%s\n\n2. 本次补丁\n   EasyPay upstreamType 允许使用点号\n   示例: usdt.trc20\n\n3. 候选镜像\n   %s:%s-dotfix\n   状态: 已通过自检并推送，尚未部署' \
               "$RELEASE_TAG" "$RELEASE_SUMMARY" "$IMAGE_NAME" "$RELEASE_TAG"
           else
             title="Sub2API 候选镜像构建失败"
