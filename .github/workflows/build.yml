@@ -38,6 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out patch repository
+        id: checkout
         uses: actions/checkout@v4
 
       - name: Resolve latest official release
@@ -53,6 +54,7 @@ jobs:
           fi
 
       - name: Prepare official source and conditional patch
+        id: prepare
         env:
           UPSTREAM_REF: ${{ steps.release.outputs.tag }}
         run: ./scripts/prepare-source.sh "$UPSTREAM_REF" upstream-src
@@ -146,6 +148,7 @@ jobs:
           cache-dependency-path: upstream-src/backend/go.sum
 
       - name: Test backend validation and EasyPay forwarding
+        id: backend_tests
         if: ${{ steps.candidate.outputs.exists != 'true' }}
         working-directory: upstream-src/backend
         run: |
@@ -159,6 +162,7 @@ jobs:
           node-version: "24"
 
       - name: Test frontend EasyPay form
+        id: frontend_tests
         if: ${{ steps.candidate.outputs.exists != 'true' }}
         working-directory: upstream-src/frontend
         run: |
@@ -205,6 +209,12 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           CANDIDATE_EXISTS: ${{ steps.candidate.outputs.exists }}
           RELEASE_SUMMARY: ${{ steps.release_notes.outputs.summary }}
+          CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
+          RELEASE_OUTCOME: ${{ steps.release.outcome }}
+          PREPARE_OUTCOME: ${{ steps.prepare.outcome }}
+          BACKEND_TESTS_OUTCOME: ${{ steps.backend_tests.outcome }}
+          FRONTEND_TESTS_OUTCOME: ${{ steps.frontend_tests.outcome }}
+          PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
         run: |
           if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
             echo "Telegram secrets are not configured; skipping notification."
@@ -220,9 +230,23 @@ jobs:
             printf -v detail '1. 官方版本更新\n   版本: %s\n   内容:\n%s\n\n2. 本次补丁\n   EasyPay upstreamType 允许使用点号\n   示例: usdt.trc20\n\n3. 候选镜像\n   %s:%s-dotfix\n   状态: 已通过自检并推送，尚未部署' \
               "$RELEASE_TAG" "$RELEASE_SUMMARY" "$IMAGE_NAME" "$RELEASE_TAG"
           else
+            failure_reason="其他构建错误，请打开构建结果查看失败步骤"
+            if [[ "$CHECKOUT_OUTCOME" == "failure" ]]; then
+              failure_reason="补丁仓库检出失败"
+            elif [[ "$RELEASE_OUTCOME" == "failure" ]]; then
+              failure_reason="获取官方最新版本失败"
+            elif [[ "$PREPARE_OUTCOME" == "failure" ]]; then
+              failure_reason="补丁应用失败，可能与官方新版代码冲突"
+            elif [[ "$BACKEND_TESTS_OUTCOME" == "failure" ]]; then
+              failure_reason="后端补丁测试失败"
+            elif [[ "$FRONTEND_TESTS_OUTCOME" == "failure" ]]; then
+              failure_reason="前端补丁测试失败"
+            elif [[ "$PUBLISH_OUTCOME" == "failure" ]]; then
+              failure_reason="Docker 镜像构建或推送失败"
+            fi
             title="Sub2API 候选镜像构建失败"
-            printf -v detail '1. 官方版本: %s\n2. 状态: %s\n3. 生产服务未变更' \
-              "${RELEASE_TAG:-未知}" "$JOB_STATUS"
+            printf -v detail '1. 官方版本: %s\n2. 失败原因: %s\n3. 处理结果: 未生成可部署镜像，生产服务未变更' \
+              "${RELEASE_TAG:-未知}" "$failure_reason"
           fi
 
           payload=$(jq -n \
