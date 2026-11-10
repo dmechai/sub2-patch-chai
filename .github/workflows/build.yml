@@ -38,7 +38,6 @@ jobs:
     outputs:
       release_tag: ${{ steps.release.outputs.tag }}
       image_name: ${{ steps.image.outputs.name }}
-      candidate_exists: ${{ steps.candidate.outputs.exists }}
       patch_status: ${{ steps.source.outputs.patch_status }}
       release_summary: ${{ steps.release_notes.outputs.summary }}
     steps:
@@ -259,7 +258,7 @@ jobs:
   auto_deploy:
     name: Preflight and automatically deploy candidate
     needs: build
-    if: ${{ needs.build.result == 'success' && needs.build.outputs.candidate_exists == 'false' }}
+    if: ${{ needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     concurrency:
       group: sub2api-production-deploy
@@ -295,10 +294,16 @@ jobs:
             -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             -o "UserKnownHostsFile=${HOME}/.ssh/known_hosts" \
             "${DEPLOY_USER}@${DEPLOY_HOST}" sudo /usr/local/sbin/sub2api-release \
-            prepare "${GITHUB_RUN_ID}" "$IMAGE_REF"
+            prepare "${GITHUB_RUN_ID}" "$IMAGE_REF" | tee prepare-output.txt
+          if grep -Fxq "already_active=true" prepare-output.txt; then
+            echo "already_active=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already_active=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Activate candidate and verify health
         id: activate
+        if: ${{ success() && steps.preflight.outputs.already_active != 'true' }}
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
@@ -311,7 +316,7 @@ jobs:
             activate "${GITHUB_RUN_ID}"
 
       - name: Notify Telegram about deployment result
-        if: ${{ always() }}
+        if: ${{ always() && steps.preflight.outputs.already_active != 'true' }}
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

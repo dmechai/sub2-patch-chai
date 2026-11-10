@@ -95,8 +95,23 @@ prepare() {
     || die "candidate image version label is unexpected"
   docker run --rm --entrypoint /app/sub2api "${candidate_image_id}" --version
 
-  local current_container rollback_image state_file
+  local current_container current_image_id rollback_image state_file
   current_container=$(docker inspect --format '{{.Id}}' sub2api)
+  current_image_id=$(docker inspect --format '{{.Image}}' sub2api)
+  if [[ "${candidate_image_id}" == "${current_image_id}" ]]; then
+    state_file="${state_dir}/deployment-${deployment_id}.env"
+    {
+      printf 'DEPLOYMENT_ID=%q\n' "${deployment_id}"
+      printf 'ORIGINAL_CONTAINER=%q\n' "${current_container}"
+      printf 'CANDIDATE_IMAGE=%q\n' "${candidate_digest}"
+      printf 'CANDIDATE_IMAGE_ID=%q\n' "${candidate_image_id}"
+      printf 'ALREADY_ACTIVE=true\n'
+    } > "${state_file}"
+    chmod 600 "${state_file}"
+    echo "already_active=true"
+    echo "Candidate ${candidate_digest} is already active; production was not changed."
+    return
+  fi
   rollback_image="sub2api-rollback:${deployment_id}"
   docker commit --pause=false sub2api "${rollback_image}" >/dev/null
   state_file="${state_dir}/deployment-${deployment_id}.env"
@@ -106,8 +121,10 @@ prepare() {
     printf 'CANDIDATE_IMAGE=%q\n' "${candidate_digest}"
     printf 'CANDIDATE_IMAGE_ID=%q\n' "${candidate_image_id}"
     printf 'ROLLBACK_IMAGE=%q\n' "${rollback_image}"
+    printf 'ALREADY_ACTIVE=false\n'
   } > "${state_file}"
   chmod 600 "${state_file}"
+  echo "already_active=false"
   echo "Prepared ${candidate_digest}; current service was not restarted."
 }
 
@@ -115,6 +132,14 @@ activate() {
   local deployment_id=$1
   validate_id "${deployment_id}"
   load_state "${deployment_id}"
+  if [[ "${ALREADY_ACTIVE:-false}" == true ]]; then
+    current_container=$(docker inspect --format '{{.Id}}' sub2api)
+    current_image_id=$(docker inspect --format '{{.Image}}' sub2api)
+    [[ "${current_container}" == "${ORIGINAL_CONTAINER}" ]] || die "running container changed after preflight; refusing deployment"
+    [[ "${current_image_id}" == "${CANDIDATE_IMAGE_ID}" ]] || die "active image changed after preflight; refusing deployment"
+    echo "Candidate ${CANDIDATE_IMAGE} is already active; activation skipped."
+    return
+  fi
   [[ $(docker inspect --format '{{.Id}}' sub2api) == "${ORIGINAL_CONTAINER}" ]] \
     || die "running container changed after preflight; refusing deployment"
   [[ $(docker image inspect --format '{{.Id}}' "${CANDIDATE_IMAGE}") == "${CANDIDATE_IMAGE_ID}" ]] \
