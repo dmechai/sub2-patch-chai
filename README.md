@@ -9,7 +9,7 @@
 
 ## 当前情况
 
-- 此仓库不会管理或修改正在运行的服务。
+- Actions 工作流会构建官方 Sub2API 源码并应用补丁；通过预检后自动更新应用容器，不修改数据库或 Redis。
 - 官方修复提交为 `c3b3072a6fae7ae6c686e05df78060c74f284a67`，已通过官方
   PR `#7012` 合并。
 - 修复已经在官方 `main`，但尚未进入最新正式版本 `v0.2.4`。
@@ -39,25 +39,18 @@ cat /tmp/sub2api-patch-check/.sub2api-patch-info
 
 ## 上传 GitHub 并跟随官方更新
 
-新建一个空的 GitHub 仓库，把本仓库推送上去并启用 GitHub Actions。工作流每天
-检查官方最新正式版本，构建后发布到 GitHub Container Registry：
+新建一个空的 GitHub 仓库，把本仓库推送上去并启用 GitHub Actions。工作流每天北京时间 04:00 检查官方最新正式版本；发现尚未构建的版本后，先应用本地补丁并运行后端、前端测试，再构建并发布候选镜像。所有检查通过后，工作流自动执行生产预检并切换 Sub2API 容器，无需人工点击确认。
 
 ```text
 ghcr.io/YOUR_GITHUB_NAME/sub2api-custom:latest
 ghcr.io/YOUR_GITHUB_NAME/sub2api-custom:vX.Y.Z-dotfix
 ```
 
-生产环境应使用明确的版本标签，测试通过后再主动切换。定时构建不会操作服务器，
-所以官方发布新版本不会让生产服务被静默重启。
+生产预检会验证当前服务健康、候选镜像来源和版本、候选程序可启动，并保存回滚快照；预检不重启服务。激活后还会再次检查健康状态，失败时服务器自动恢复先前容器。数据库、Redis 和数据目录不会被重建或删除。
 
-在仓库的 Actions secrets 中配置 `TELEGRAM_BOT_TOKEN` 和
-`TELEGRAM_CHAT_ID` 后，每次构建都会通知成功或失败。成功通知仅表示候选镜像已经
-通过后端校验、支付参数透传和前端表单测试，并已推送到 GHCR；通知本身不会部署。
-成功通知还会提供一个“打开部署页面”按钮。部署入口是单独的手动工作流，任何定时
-任务都不能调用它；页面还会要求 `production` 环境审批。
+Telegram 会在构建或部署失败、以及新版本部署完成时通知官方版本、Release 摘要、本地补丁状态和最终结果，并提供一个回退按钮。没有新官方版本时不重复构建、部署或发送更新消息。
 
-修改 `patches/`、`scripts/` 或构建工作流并推送到 `main` 时也会触发自检。仅修改
-说明文档不会重复构建镜像。
+仅修改说明文档不会重复构建镜像。
 
 以后增加补丁时，把标准 Git patch 文件放入 `patches/`，同时加入覆盖该行为的测试，
 再推送到 `main`。构建过程只修改临时下载的官方源码副本，不会覆盖 Wei-Shaw 的官方
@@ -65,9 +58,7 @@ ghcr.io/YOUR_GITHUB_NAME/sub2api-custom:vX.Y.Z-dotfix
 
 ## 部署工作流所需配置
 
-在仓库 `Settings -> Environments` 新建 `production` 环境，添加你自己的审批人。
-部署相关的连接值放在仓库 `Settings -> Secrets and variables -> Actions` 的
-**Repository secrets** 中（这样审批前的服务器预检也能执行）：
+在仓库 `Settings -> Secrets and variables -> Actions` 配置以下 Repository secrets。自动部署使用这些仓库级 secrets，不经过要求人工审批的 `production` environment；`deploy.yml` 手动部署工作流仍受该 environment 审批保护，作为备用入口。
 
 ```text
 DEPLOY_HOST       服务器 IP 或域名
@@ -78,10 +69,7 @@ DEPLOY_SSH_KEY    GitHub Actions 使用的私钥
 DEPLOY_KNOWN_HOSTS 服务器固定的 known_hosts 行
 ```
 
-部署工作流先在 `production` 审批前通过 SSH 做预检：验证当前服务健康、拉取候选镜像、
-检查版本和官方来源标签、运行二进制 `--version`，并用不暂停容器的方式保存回滚快照。
-预检不会重启服务。你批准后，工作流只使用已缓存的镜像切换 **Sub2API 容器**，再做
-健康检查；失败会自动恢复快照。PostgreSQL、Redis 和数据目录不会被重建或删除。
+自动部署先通过 SSH 做预检：验证当前服务健康、拉取候选镜像、检查版本和官方来源标签、运行二进制 `--version`，并用不暂停容器的方式保存回滚快照。预检不会重启服务。预检通过后工作流自动切换 **Sub2API 容器**，再做健康检查；失败会自动恢复快照。PostgreSQL、Redis 和数据目录不会被重建或删除。手动部署备用入口仍需要 `production` 环境审批。
 
 部署页面默认使用 `ghcr.io/dmechai/sub2api-custom:latest`，它指向最近一次通过自检并
 成功上传的候选镜像；也可以手动填写固定标签（例如 `v0.2.4-dotfix`）以便审计和回滚。
@@ -89,9 +77,7 @@ DEPLOY_KNOWN_HOSTS 服务器固定的 known_hosts 行
 直接进入该工作流。
 
 当前服务器实际运行官方 `v0.2.4`。Docker 镜像标签仍记录初始版本 `v0.1.179`，
-但页面在线更新已经把容器内程序升级到了 `v0.2.4`。首次构建应手动运行一次工作流，
-把 `upstream_ref` 填为 `v0.2.4`，测试 `v0.2.4-dotfix` 后再让生产使用该版本。
-定时任务可以继续构建新版本，但不会自动部署。
+但页面在线更新已经把容器内程序升级到了 `v0.2.4`。自动工作流在发现新正式版本且候选镜像尚不存在时才构建并部署；失败时 Telegram 会报告阶段和结果。
 
 ## 以后切换生产镜像
 

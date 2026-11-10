@@ -1,13 +1,12 @@
 name: Build patched Sub2API image
 
-# Build-only validation; production deployment is intentionally separate.
+# Build, validate, and automatically deploy new official releases.
 
 on:
   push:
     branches:
       - main
     paths:
-      - ".github/workflows/build.yml"
       - "patches/**"
       - "scripts/**"
   workflow_dispatch:
@@ -22,8 +21,8 @@ on:
         default: false
         type: boolean
   schedule:
-    # GitHub schedules use UTC; 16:00 UTC is 00:00 Asia/Shanghai.
-    - cron: "0 16 * * *"
+    # GitHub schedules use UTC; 20:00 UTC is 04:00 Asia/Shanghai.
+    - cron: "0 20 * * *"
 
 permissions:
   contents: read
@@ -31,11 +30,17 @@ permissions:
 
 concurrency:
   group: sub2api-patched-image
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.release.outputs.tag }}
+      image_name: ${{ steps.image.outputs.name }}
+      candidate_exists: ${{ steps.candidate.outputs.exists }}
+      patch_status: ${{ steps.source.outputs.patch_status }}
+      release_summary: ${{ steps.release_notes.outputs.summary }}
     steps:
       - name: Check out patch repository
         id: checkout
@@ -202,67 +207,151 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Notify Telegram
-        if: ${{ always() && (steps.candidate.outputs.exists != 'true' || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[test-telegram]')) }}
+      - name: Notify Telegram about build failure
+        if: ${{ failure() }}
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          JOB_STATUS: ${{ job.status }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           PATCH_STATUS: ${{ steps.source.outputs.patch_status }}
-          IMAGE_NAME: ${{ steps.image.outputs.name }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          CANDIDATE_EXISTS: ${{ steps.candidate.outputs.exists }}
-          RELEASE_SUMMARY: ${{ steps.release_notes.outputs.summary }}
           CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
           RELEASE_OUTCOME: ${{ steps.release.outcome }}
           PREPARE_OUTCOME: ${{ steps.prepare.outcome }}
           BACKEND_TESTS_OUTCOME: ${{ steps.backend_tests.outcome }}
           FRONTEND_TESTS_OUTCOME: ${{ steps.frontend_tests.outcome }}
           PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ROLLBACK_URL: ${{ github.server_url }}/${{ github.repository }}/actions/workflows/rollback.yml
         run: |
           if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
             echo "Telegram secrets are not configured; skipping notification."
             exit 0
           fi
 
-          if [[ "$CANDIDATE_EXISTS" == "true" ]]; then
-            title="Sub2API 候选镜像已经存在"
-            printf -v detail '1. 官方版本更新\n   版本: %s\n   内容:\n%s\n\n2. 本次补丁\n   - EasyPay upstreamType 允许使用点号\n     示例: usdt.trc20\n   - type=u (USDC / USDT) 使用专属支付图标\n\n3. 候选镜像\n   %s:%s-dotfix\n   状态: 已存在，未重复构建，生产服务未变更' \
-              "$RELEASE_TAG" "$RELEASE_SUMMARY" "$IMAGE_NAME" "$RELEASE_TAG"
-          elif [[ "$JOB_STATUS" == "success" ]]; then
-            title="Sub2API 候选镜像已通过自检"
-            printf -v detail '1. 官方版本更新\n   版本: %s\n   内容:\n%s\n\n2. 本次补丁\n   - EasyPay upstreamType 允许使用点号\n     示例: usdt.trc20\n   - type=u (USDC / USDT) 使用专属支付图标\n\n3. 候选镜像\n   %s:%s-dotfix\n   状态: 已通过自检并推送，尚未部署' \
-              "$RELEASE_TAG" "$RELEASE_SUMMARY" "$IMAGE_NAME" "$RELEASE_TAG"
-          else
-            failure_reason="其他构建错误，请打开构建结果查看失败步骤"
-            if [[ "$CHECKOUT_OUTCOME" == "failure" ]]; then
-              failure_reason="补丁仓库检出失败"
-            elif [[ "$RELEASE_OUTCOME" == "failure" ]]; then
-              failure_reason="获取官方最新版本失败"
-            elif [[ "$PREPARE_OUTCOME" == "failure" ]]; then
-              failure_reason="补丁应用失败，可能与官方新版代码冲突"
-            elif [[ "$BACKEND_TESTS_OUTCOME" == "failure" ]]; then
-              failure_reason="后端补丁测试失败"
-            elif [[ "$FRONTEND_TESTS_OUTCOME" == "failure" ]]; then
-              failure_reason="前端补丁测试失败"
-            elif [[ "$PUBLISH_OUTCOME" == "failure" ]]; then
-              failure_reason="Docker 镜像构建或推送失败"
-            fi
-            title="Sub2API 候选镜像构建失败"
-            printf -v detail '1. 官方版本: %s\n2. 失败原因: %s\n3. 处理结果: 未生成可部署镜像，生产服务未变更' \
-              "${RELEASE_TAG:-未知}" "$failure_reason"
+          failure_reason="构建流程失败，请查看 Actions 日志"
+          if [[ "$CHECKOUT_OUTCOME" == "failure" ]]; then
+            failure_reason="补丁仓库检出失败"
+          elif [[ "$RELEASE_OUTCOME" == "failure" ]]; then
+            failure_reason="获取官方最新版本失败"
+          elif [[ "$PREPARE_OUTCOME" == "failure" ]]; then
+            failure_reason="补丁应用失败，可能与官方新版代码冲突"
+          elif [[ "$BACKEND_TESTS_OUTCOME" == "failure" ]]; then
+            failure_reason="后端补丁测试失败"
+          elif [[ "$FRONTEND_TESTS_OUTCOME" == "failure" ]]; then
+            failure_reason="前端补丁测试失败"
+          elif [[ "$PUBLISH_OUTCOME" == "failure" ]]; then
+            failure_reason="Docker 镜像构建或推送失败"
+          fi
+          printf -v detail '官方版本: %s\n构建结果: 失败\n原因: %s\n生产服务: 未变更\n补丁状态: %s\n运行记录: %s' \
+            "${RELEASE_TAG:-未知}" "$failure_reason" "${PATCH_STATUS:-未确认}" "$RUN_URL"
+          payload=$(jq -n \
+            --arg chat_id "$TELEGRAM_CHAT_ID" \
+            --arg text "Sub2API 更新失败\n\n$detail" \
+            --arg rollback_url "$ROLLBACK_URL" \
+            '{chat_id: $chat_id, text: $text, reply_markup: {inline_keyboard: [[{text: "回退 Sub2API", url: $rollback_url}]]}}')
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Content-Type: application/json" \
+            --data "$payload" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
+
+  auto_deploy:
+    name: Preflight and automatically deploy candidate
+    needs: build
+    if: ${{ needs.build.result == 'success' && needs.build.outputs.candidate_exists == 'false' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: sub2api-production-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Install deployment SSH key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          test -n "$DEPLOY_SSH_KEY"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+      - name: Install pinned server host key
+        env:
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          test -n "$DEPLOY_KNOWN_HOSTS"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Preflight candidate without restarting production
+        id: preflight
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          IMAGE_REF: ${{ needs.build.outputs.image_name }}:${{ needs.build.outputs.release_tag }}-dotfix
+        run: |
+          test -n "$DEPLOY_HOST" && test -n "$DEPLOY_PORT" && test -n "$DEPLOY_USER"
+          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" \
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=${HOME}/.ssh/known_hosts" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" sudo /usr/local/sbin/sub2api-release \
+            prepare "${GITHUB_RUN_ID}" "$IMAGE_REF"
+
+      - name: Activate candidate and verify health
+        id: activate
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" \
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=${HOME}/.ssh/known_hosts" \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" sudo /usr/local/sbin/sub2api-release \
+            activate "${GITHUB_RUN_ID}"
+
+      - name: Notify Telegram about deployment result
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          JOB_STATUS: ${{ job.status }}
+          PREFLIGHT_OUTCOME: ${{ steps.preflight.outcome }}
+          ACTIVATE_OUTCOME: ${{ steps.activate.outcome }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+          PATCH_STATUS: ${{ needs.build.outputs.patch_status }}
+          RELEASE_SUMMARY: ${{ needs.build.outputs.release_summary }}
+          ROLLBACK_URL: ${{ github.server_url }}/${{ github.repository }}/actions/workflows/rollback.yml
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [[ -z "$TELEGRAM_BOT_TOKEN" || -z "$TELEGRAM_CHAT_ID" ]]; then
+            echo "Telegram secrets are not configured; skipping notification."
+            exit 0
           fi
 
+          if [[ "$JOB_STATUS" == "success" ]]; then
+            title="Sub2API 自动更新成功"
+            result="自动部署完成，健康检查通过。"
+          elif [[ "$ACTIVATE_OUTCOME" == "failure" ]]; then
+            title="Sub2API 自动部署未成功"
+            result="候选版本未完成健康切换；若切换后健康检查失败，服务器部署脚本会自动回滚。"
+          elif [[ "$PREFLIGHT_OUTCOME" == "failure" ]]; then
+            title="Sub2API 更新预检未通过"
+            result="生产服务未切换，当前版本保持运行。"
+          else
+            title="Sub2API 自动更新失败"
+            result="部署流程未完成，生产服务未确认切换；请查看运行记录。"
+          fi
+          printf -v detail '官方版本: %s\n\n官方更新内容:\n%s\n\n本地补丁: EasyPay upstreamType 支持点号（例如 usdt.trc20）；type=u 的 USDC/USDT 使用专属支付图标\n补丁状态: %s\n部署结果: %s\n运行记录: %s' \
+            "$RELEASE_TAG" "${RELEASE_SUMMARY:-官方 Release 详情请查看运行记录}" \
+            "${PATCH_STATUS:-未确认}" "$result" "$RUN_URL"
           payload=$(jq -n \
             --arg chat_id "$TELEGRAM_CHAT_ID" \
             --arg title "$title" \
             --arg detail "$detail" \
-            --arg run_url "$RUN_URL" \
-            --arg deploy_url "${{ github.server_url }}/${{ github.repository }}/actions/workflows/deploy.yml" \
-            --arg rollback_url "${{ github.server_url }}/${{ github.repository }}/actions/workflows/rollback.yml" \
-            '{chat_id: $chat_id, text: ($title + "\n\n" + $detail), reply_markup: {inline_keyboard: [[{text: "查看构建结果", url: $run_url}, {text: "准备部署", url: $deploy_url}], [{text: "打开回退页面", url: $rollback_url}]]}}')
+            --arg rollback_url "$ROLLBACK_URL" \
+            '{chat_id: $chat_id, text: ($title + "\n\n" + $detail), reply_markup: {inline_keyboard: [[{text: "回退 Sub2API", url: $rollback_url}]]}}')
           curl --fail --silent --show-error \
             --request POST \
             --header "Content-Type: application/json" \
